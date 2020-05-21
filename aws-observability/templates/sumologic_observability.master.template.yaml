@@ -31,6 +31,7 @@ Metadata:
           - Section3dRDSInstallApp
           - Section3eLambdaInstallApp
           - Section3fAPIGatewayInstallApp
+          - Section3gAnomalyInstallApp
 
       - Label:
           default: "4. Sumo Logic AWS EC2 Meta Data Source details"
@@ -38,10 +39,12 @@ Metadata:
           - Section4aEC2CreateMetaDataSource
 
       - Label:
-          default: "5. Sumo Logic AWS CloudWatch Metrics Source Details"
+          default: "5. Sumo Logic AWS CloudWatch Metrics and Inventory Source Details"
         Parameters:
           - Section5aCreateCloudWatchMetricsSource
           - Section5bCloudWatchMetricsNameSpaces
+          - Section5cCreateAnomalyInventorySource
+          - Section5dAnomalyInventoryNameSpaces
 
       - Label:
           default: "6. Sumo Logic AWS ALB Log Source Details"
@@ -114,6 +117,8 @@ Metadata:
         default: "Install Lambda App"
       Section3fAPIGatewayInstallApp:
         default: "Install API Gateway App"
+      Section3gAnomalyInstallApp:
+        default: "Install Anomaly App "
 
       Section4aEC2CreateMetaDataSource:
         default: "Create Sumo Logic AWS EC2 MetaData Source"
@@ -122,6 +127,10 @@ Metadata:
         default: "Create Sumo Logic CloudWatch Metrics Source"
       Section5bCloudWatchMetricsNameSpaces:
         default: "Sumo Logic AWS CloudWatch Metrics Namespaces"
+      Section5cCreateAnomalyInventorySource:
+        default: "Create Sumo Logic Anomaly Inventory Source"
+      Section5dAnomalyInventoryNameSpaces:
+        default: "Sumo Logic AWS Anomaly Inventory Namespaces"
 
       Section6aALBCreateS3Bucket:
         default: "Create AWS S3 Bucket for Logs"
@@ -175,15 +184,9 @@ Parameters:
   Section1aSumoLogicDeployment:
     Type: String
     AllowedValues:
-      - au
-      - ca
-      - de
-      - eu
-      - jp
-      - us2
-      - us1
-      - in
-      - fed
+      - nite
+      - stag
+      - long
     Description: "Enter au, ca, de, eu, jp, us2, in, fed or us1."
   Section1bSumoLogicAccessID:
     Type: String
@@ -285,6 +288,14 @@ Parameters:
     AllowedValues:
       - 'Yes'
       - 'No'
+  Section3gAnomalyInstallApp:
+    Type: String
+    Default: 'Yes'
+    Description: "Yes - Installs the Anomaly Dashboards in Sumo Logic AWS Observability Solution.
+                  No - Skips the installation of this dashboards."
+    AllowedValues:
+      - 'Yes'
+      - 'No'
 
   Section4aEC2CreateMetaDataSource:
     Type: String
@@ -304,8 +315,20 @@ Parameters:
       - 'Yes'
       - 'No'
   Section5bCloudWatchMetricsNameSpaces:
-    Default: "AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS"
-    Description: "Provide Comma delimited list of the namespaces to collect. Default will be AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS."
+    Default: "AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS, AWS/EBS, AWS/ECS, AWS/Elasticache, AWS/ELB, AWS/NetworkELB, AWS/Redshift, AWS/Kinesis, AWS/Kinesis"
+    Description: "Provide Comma delimited list of the namespaces to collect. Default will be AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS, AWS/EBS, AWS/ECS, AWS/Elasticache, AWS/ELB, AWS/NetworkELB, AWS/Redshift, AWS/Kinesis, AWS/Kinesis."
+    Type: String
+  Section5cCreateAnomalyInventorySource:
+    Type: String
+    Description: "Yes - Creates a Sumo Logic Inventory Source which collects data for multiple Namespaces from the region selected. Default Name - AccountAlias-aws-observability-inventory-Region.
+                  No - If you already have a Inventory Source collecting data."
+    Default: 'Yes'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+  Section5dAnomalyInventoryNameSpaces:
+    Default: "AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS, AWS/EBS, AWS/ECS, AWS/Elasticache, AWS/ELB, AWS/NetworkELB, AWS/Redshift, AWS/Kinesis, AWS/Kinesis"
+    Description: "Provide Comma delimited list of the namespaces to collect. Default will be AWS/ApplicationELB, AWS/ApiGateway, AWS/DynamoDB, AWS/Lambda, AWS/RDS, AWS/EBS, AWS/ECS, AWS/Elasticache, AWS/ELB, AWS/NetworkELB, AWS/Redshift, AWS/Kinesis, AWS/Kinesis."
     Type: String
 
   Section6aALBCreateS3Bucket:
@@ -454,6 +477,10 @@ Conditions:
 
   # Condition for CloudWatch Metrics Source
   install_cloudwatch_metrics_source: !Equals [ !Ref Section5aCreateCloudWatchMetricsSource, 'Yes' ]
+  install_inventory_source: !Equals [ !Ref Section5cCreateAnomalyInventorySource, 'Yes' ]
+  install_anomaly_detection: !Or
+    - !Equals [ !Ref Section3gAnomalyInstallApp, 'Yes' ]
+    - !Condition install_inventory_source
 
   # Condition for CloudTrail Log Source
   create_cloudtrail_bucket: !Equals [ !Ref Section7aCreateCloudTrailBucket, 'Yes' ]
@@ -496,6 +523,7 @@ Conditions:
     - !Equals [ !Ref Section3dRDSInstallApp, 'Yes' ]
     - !Equals [ !Ref Section3eLambdaInstallApp, 'Yes' ]
     - !Equals [ !Ref Section3fAPIGatewayInstallApp, 'Yes' ]
+    - !Equals [ !Ref Section3gAnomalyInstallApp, 'Yes' ]
 
 Mappings:
   RegionMap:
@@ -575,7 +603,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/common/resources.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/common/resources.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -635,7 +663,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/ec2metrics/ec2_metrics_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/ec2metrics/ec2_metrics_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -670,7 +698,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/alb/alb_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/alb/alb_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -712,7 +740,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/dynamodb/dynamodb_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/dynamodb/dynamodb_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -754,7 +782,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/rds/rds_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/rds/rds_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -796,7 +824,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/lambda/lambda_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/lambda/lambda_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -842,7 +870,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/apigateway/api_gateway_app.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/apigateway/api_gateway_app.template.yaml"
       Parameters:
         Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
         Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
@@ -865,6 +893,40 @@ Resources:
         Section5gCloudTrailLogsSourceCategoryName: !If [install_cloudtrail_log_source, "aws/observability/cloudtrail/logs", !Ref Section7gCloudTrailLogsSourceCategoryName]
         Section6aParentStackName: !GetAtt CreateCommonResources.Outputs.StackName
 
+  AnamolyWaitHandle:
+    DependsOn: sumoApiGatewayMetricsAppStack
+    Type: "AWS::CloudFormation::WaitConditionHandle"
+
+  AnamolyWaitCondition:
+    Type: "AWS::CloudFormation::WaitCondition"
+    Properties:
+      Handle: !Ref AnamolyWaitHandle
+      Timeout: "10"
+      Count: 0
+
+  AnamolyAppStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AnamolyWaitCondition
+    Condition: install_anomaly_detection
+    Properties:
+      TemplateURL: !Join
+        - ""
+        - - "https://"
+          - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/tsat/tsat.template.yaml"
+      Parameters:
+        Section1aSumoDeployment: !Ref Section1aSumoLogicDeployment
+        Section1bSumoAccessID: !Ref Section1bSumoLogicAccessID
+        Section1cSumoAccessKey: !Ref Section1cSumoLogicAccessKey
+        Section1dSumoOrganizationId: !Ref Section1dSumoLogicOrganizationId
+        Section1eRemoveSumoResourcesOnDeleteStack: !Ref Section1eSumoLogicResourceRemoveOnDeleteStack
+        Section2aInstallApp: !Ref Section3gAnomalyInstallApp
+        Section2bCollectorName: "aws-observability-collector"
+        Section3aCreateAwsInventorySource: !If [install_inventory_source, "Yes", "No" ]
+        Section3bAwsInventorySourceName: !Sub "${Section2cAccountAlias}-aws-observability-inventory-${AWS::Region}"
+        Section3cNamespaces: !Ref Section5dAnomalyInventoryNameSpaces
+        Section4aParentStackName: !GetAtt CreateCommonResources.Outputs.StackName
+
   AutoEnableTaggingNewAWSResources:
     Type: AWS::CloudFormation::Stack
     Condition: tag_new_aws_resources
@@ -873,7 +935,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/AutoTagAWSResources/auto_tag_resources.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/AutoTagAWSResources/auto_tag_resources.template.yaml"
       Parameters:
         AccountAlias: !Ref Section2cAccountAlias
         AddTagsForALBResources: !If [tag_new_aws_resources, !GetAtt Primerinvoke.tag_alb, "No"]
@@ -893,7 +955,7 @@ Resources:
         - ""
         - - "https://"
           - !FindInMap [RegionMap, !Ref 'AWS::Region', bucketname]
-          - ".s3.amazonaws.com/sumologic-aws-observability/apps/AutoEnableS3LogsAlb/auto_enable_s3_alb.template.yaml"
+          - ".s3.amazonaws.com/sumologic-aws-observability-pre-prod/apps/AutoEnableS3LogsAlb/auto_enable_s3_alb.template.yaml"
       Parameters:
         BucketName: !If [create_alb_bucket, !GetAtt CreateCommonResources.Outputs.BucketName, !Ref Section6bALBS3LogsBucketName]
         BucketPrefix: "elasticloadbalancing"
